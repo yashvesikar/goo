@@ -199,6 +199,25 @@ func addInstFunc(fn *ir.Func) {
 	instFuncs = append(instFuncs, fn)
 }
 
+// addOrSkipInstWrapper records fn, a method wrapper for an
+// instantiated type that finishWrapperFunc has added to
+// typecheck.Target.Funcs. Like an instantiation in readBodies, it is
+// skipped (left to the frontend only) if a directly imported
+// package's manifest lists it, and compiled otherwise.
+//
+// Type descriptors and itabs refer to wrappers by symbol; for a
+// skipped wrapper those are by-name references to the DUPOK
+// definition in the import closure. shareInstEnabled is false under
+// -linkshared, where such cross-DSO method references are not
+// supported (go.dev/issue/58966).
+func addOrSkipInstWrapper(fn *ir.Func) {
+	if shareInstEnabled() && ImportedInstantiation(fn.Linksym().Name) {
+		skipInstFunc(fn)
+	} else {
+		addInstFunc(fn)
+	}
+}
+
 // isInstantiatedType reports whether methods of typ (or of *typ)
 // belong to an instantiated generic type.
 func isInstantiatedType(typ *types.Type) bool {
