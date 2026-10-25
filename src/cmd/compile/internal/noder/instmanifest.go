@@ -30,12 +30,32 @@ import (
 // root. The manifest's contract is:
 //
 //	Every name listed in a package's manifest is the link symbol
-//	name of a function that is defined as a DUPOK text symbol in
-//	that package's object file.
+//	name of a DUPOK text function that is defined either in this
+//	package's object file or in the object file of a package in its
+//	import closure; a program that links this package therefore
+//	always has a definition of it.
 //
 // Consequently, a package that imports it may refer to any listed
-// function by name instead of compiling its own copy, and the linker
-// will resolve the reference.
+// function by name instead of compiling its own copy (the backend
+// skips it; see SkippedInstantiation), and the linker will resolve
+// the reference.
+//
+// A package's manifest is the union of the instantiations it compiled
+// itself and those it skipped. The contract holds by induction over
+// the import graph: a compiled entry is defined in this package's
+// object (checked at -d=shareinst=2), and a skipped entry was taken
+// from the manifest of a direct import, whose own contract places its
+// definition in that import's import closure, which is part of ours.
+// The manifest cannot go stale: cmd/go hashes the export data of a
+// package's direct imports into its action ID, so a change to what an
+// import's closure defines changes that import's manifest and
+// recompiles this package.
+//
+// Because skipped functions still go through the whole frontend, and
+// the manifest includes them, a package's export data is the same
+// whether or not sharing is enabled. This matters for plugins:
+// plugin.Open compares package fingerprints (export data hashes)
+// between a host built with sharing and a plugin built without it.
 //
 // The manifest only lists functions; runtime dictionaries and type
 // descriptors are not included.
@@ -116,6 +136,57 @@ var localInsts *instManifest
 // imported packages.
 var importedInsts instManifest
 
+// skippedInsts lists the names of the instantiations that will not be
+// compiled because a directly imported package's manifest lists them.
+// They are referenced by name and resolved by the linker against the
+// definition in the import closure.
+var skippedInsts instManifest
+
+// skippedFuncs is the set of functions in skippedInsts. They are in
+// typecheck.Target.Funcs, so the frontend processes them as usual,
+// but the backend must not compile them.
+var skippedFuncs = make(map[*ir.Func]bool)
+
+// shareInstEnabled reports whether this compilation may skip
+// instantiations that imported packages' manifests list.
+//
+// Manifests are always written, but they are not consulted when
+// dynamically linking against other Go modules, where a symbol defined
+// in an imported package's object may end up in a different module.
+// -dynlink is what cmd/go passes for -linkshared, -buildmode=shared
+// and -buildmode=plugin.
+//
+// -shared alone is position-independent code for a single module
+// (-buildmode=pie, the default on darwin/arm64, or c-shared/c-archive)
+// and does not prevent sharing. (-dynlink also sets Ctxt.Flag_shared,
+// so Flag_shared itself must not be tested here.)
+func shareInstEnabled() bool {
+	return base.Debug.ShareInst > 0 && !base.Ctxt.Flag_dynlink && !base.Ctxt.Flag_linkshared
+}
+
+// skipInstFunc records that fn, a generic function instantiation
+// listed in an imported package's manifest, has been added to
+// typecheck.Target.Funcs but must not be compiled.
+func skipInstFunc(fn *ir.Func) {
+	if fn.OClosure != nil {
+		base.FatalfAt(fn.Pos(), "unexpected closure %v in instantiation manifest", fn)
+	}
+	name := fn.Linksym().Name
+	skippedInsts.add(name)
+	skippedFuncs[fn] = true
+	if base.Debug.ShareInst >= 2 {
+		fmt.Printf("shareinst: skip %s\n", name)
+	}
+}
+
+// SkippedInstantiation reports whether fn is an instantiation that
+// an imported package already compiled, so the backend must not
+// compile it. Closures within it are compiled only along with it, so
+// they are skipped too.
+func SkippedInstantiation(fn *ir.Func) bool {
+	return skippedFuncs[fn]
+}
+
 // addInstFunc records that fn, a generic function instantiation or a
 // method wrapper for an instantiated type, has been added to
 // typecheck.Target.Funcs and will be compiled.
@@ -137,7 +208,9 @@ func isInstantiatedType(typ *types.Type) bool {
 	return typ.IsFullyInstantiated()
 }
 
-// localInstManifest returns the manifest for the local package.
+// localInstManifest returns the manifest for the local package: the
+// union of the instantiations compiled locally (instFuncs) and those
+// skipped (skippedInsts).
 //
 // It is computed once, at the time export data is first written,
 // and subsequent calls return the same manifest. In particular, the
@@ -154,6 +227,7 @@ func localInstManifest() *instManifest {
 		}
 		localInsts.add(fn.Linksym().Name)
 	}
+	localInsts.merge(&skippedInsts)
 	return localInsts
 }
 
@@ -162,7 +236,9 @@ func writeInstManifest(w *pkgbits.Encoder) {
 	m := localInstManifest()
 	if base.Debug.ShareInst >= 2 {
 		for _, name := range m.sorted() {
-			fmt.Printf("shareinst: emit %s\n", name)
+			if !skippedInsts.has(name) {
+				fmt.Printf("shareinst: emit %s\n", name)
+			}
 		}
 	}
 	m.write(w)
@@ -185,9 +261,16 @@ func ImportedInstantiation(name string) bool {
 	return importedInsts.has(name)
 }
 
-// CheckInstManifest verifies that every entry of the local package's
-// manifest names a DUPOK text symbol defined in this compilation
-// unit. It must be called after all functions have been compiled.
+// CheckInstManifest verifies the local package's manifest against
+// what this compilation unit actually defined:
+//
+//   - every locally compiled entry is a DUPOK text symbol defined
+//     in this object;
+//   - no skipped entry is defined in this object;
+//   - the compiled and skipped sets are disjoint, and the manifest is
+//     exactly their union.
+//
+// It must be called after all functions have been compiled.
 //
 // It is a no-op unless -d=shareinst=2 is set.
 func CheckInstManifest() {
@@ -195,25 +278,39 @@ func CheckInstManifest() {
 		return
 	}
 
-	defined := make(map[*obj.LSym]bool, len(base.Ctxt.Text))
+	defined := make(map[string]*obj.LSym, len(base.Ctxt.Text))
 	for _, s := range base.Ctxt.Text {
-		defined[s] = true
+		defined[s.Name] = s
 	}
 
 	m := localInstManifest()
+	emitted := make(map[string]bool, len(instFuncs))
 	for _, fn := range instFuncs {
 		s := fn.Linksym()
+		emitted[s.Name] = true
 		if !m.has(s.Name) {
 			base.Fatalf("shareinst: %s missing from manifest", s.Name)
 		}
-		if !defined[s] {
+		if defined[s.Name] != s {
 			base.Fatalf("shareinst: manifest entry %s is not defined as a text symbol", s.Name)
 		}
 		if !s.DuplicateOK() {
 			base.Fatalf("shareinst: manifest entry %s is not DUPOK", s.Name)
 		}
+		if skippedInsts.has(s.Name) {
+			base.Fatalf("shareinst: manifest entry %s is both compiled and skipped", s.Name)
+		}
 	}
-	if len(instFuncs) != m.len() {
-		base.Fatalf("shareinst: manifest has %d entries, but %d instantiations were compiled", m.len(), len(instFuncs))
+	for fn := range skippedFuncs {
+		name := fn.Linksym().Name
+		if !m.has(name) {
+			base.Fatalf("shareinst: skipped %s missing from manifest", name)
+		}
+		if defined[name] != nil {
+			base.Fatalf("shareinst: skipped instantiation %s was compiled", name)
+		}
+	}
+	if want := len(emitted) + skippedInsts.len(); m.len() != want || len(emitted) != len(instFuncs) || len(skippedFuncs) != skippedInsts.len() {
+		base.Fatalf("shareinst: manifest has %d entries, but %d instantiations were compiled and %d skipped", m.len(), len(instFuncs), skippedInsts.len())
 	}
 }
