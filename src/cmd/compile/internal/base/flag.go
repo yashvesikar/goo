@@ -184,6 +184,7 @@ func ParseFlags() {
 	Debug.MaxShapeLen = 500
 	Debug.AlignHot = 1
 	Debug.InlFuncsWithClosures = 1
+	Debug.ShareInst = 1
 	Debug.InlStaticInit = 1
 	Debug.FreeAppend = 1
 	Debug.PGOInline = 1

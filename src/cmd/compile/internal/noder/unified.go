@@ -25,8 +25,8 @@ import (
 )
 
 // uirVersion is the unified IR version to use for encoding/decoding.
-// Use V5 for generic method index ordering.
-const uirVersion = pkgbits.V5
+// Use V6 for instantiation manifests.
+const uirVersion = pkgbits.V6
 
 // localPkgReader holds the package reader used for reading the local
 // package. It exists so the unified IR linker can refer back to it
@@ -278,6 +278,7 @@ func readBodies(target *ir.Package, duringInlining bool, profile *pgoir.Profile)
 					inlDecls = append(inlDecls, fn)
 				} else {
 					target.Funcs = append(target.Funcs, fn)
+					addInstFunc(fn)
 				}
 			}
 
@@ -460,6 +461,10 @@ func readPackage(pr *pkgReader, importpkg *types.Pkg, localStub bool) {
 			}
 		}
 
+		if r.Version().Has(pkgbits.InstManifest) {
+			readInstManifest(pr, &r.Decoder)
+		}
+
 		r.Sync(pkgbits.SyncEOF)
 	}
 }
@@ -569,6 +574,10 @@ func writeUnifiedExport(out io.Writer) {
 			w.String(body.sym.Pkg.Path)
 			w.String(body.sym.Name)
 			w.Reloc(pkgbits.SectionBody, body.idx)
+		}
+
+		if w.Version().Has(pkgbits.InstManifest) {
+			writeInstManifest(w)
 		}
 
 		w.Sync(pkgbits.SyncEOF)
