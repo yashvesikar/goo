@@ -4205,7 +4205,7 @@ func methodWrapper(derefs int, tbase *types.Type, method *types.Field, target *i
 	finishWrapperFunc(fn, target)
 
 	if isInstantiatedType(tbase) {
-		addInstFunc(fn)
+		addOrSkipInstWrapper(fn)
 	}
 }
 
@@ -4234,7 +4234,7 @@ func wrapMethodValue(recvType *types.Type, method *types.Field, target *ir.Packa
 	finishWrapperFunc(fn, target)
 
 	if isInstantiatedType(recvType) {
-		addInstFunc(fn)
+		addOrSkipInstWrapper(fn)
 	}
 }
 
