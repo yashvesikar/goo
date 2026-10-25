@@ -437,3 +437,14 @@ func TestIssue81303(t *testing.T) {
 	goCmd(t, "build", "-o", "issue81303.exe", "./issue81303/main.go")
 	run(t, "./issue81303.exe")
 }
+
+func TestIssue56718(t *testing.T) {
+	// Issue 56718: the host skips compiling generic instantiations
+	// that the export data of its imports says are already compiled,
+	// while the plugin (-dynlink) compiles them all. The package
+	// fingerprints that plugin.Open compares must still match.
+	globalSkip(t)
+	goCmd(t, "build", "-buildmode=plugin", "-o", "issue56718.so", "./issue56718/plugin.go")
+	goCmd(t, "build", "-o", "issue56718.exe", "./issue56718/main.go")
+	run(t, "./issue56718.exe")
+}
