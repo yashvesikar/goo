@@ -14,6 +14,7 @@ import (
 	"cmd/compile/internal/base"
 	"cmd/compile/internal/ir"
 	"cmd/compile/internal/liveness"
+	"cmd/compile/internal/noder"
 	"cmd/compile/internal/objw"
 	"cmd/compile/internal/pgoir"
 	"cmd/compile/internal/ssacompile"
@@ -39,6 +40,13 @@ func enqueueFunc(fn *ir.Func, symABIs *ssagen.SymABIs) {
 
 	if fn.IsClosure() {
 		return // we'll get this as part of its enclosing function
+	}
+
+	if noder.SkippedInstantiation(fn) {
+		// An imported package already compiled this instantiation;
+		// the linker resolves our references to it by name. Its
+		// closures are skipped along with it.
+		return
 	}
 
 	if ssagen.CreateWasmImportWrapper(fn) {

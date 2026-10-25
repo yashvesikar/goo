@@ -269,6 +269,20 @@ func readBodies(target *ir.Package, duringInlining bool, profile *pgoir.Profile)
 
 			// Instantiated generic function: add to Decls for typechecking
 			// and compilation.
+			//
+			// If a directly imported package's instantiation manifest
+			// lists the function, a package in our import closure
+			// already defines it as a DUPOK text symbol (see
+			// instmanifest.go). We still add it to target.Funcs, so
+			// that the frontend (inlining, devirtualization, escape
+			// analysis) treats it exactly as if we were going to
+			// compile it: that keeps our export data, including
+			// callers' escape tags, independent of whether sharing is
+			// enabled. Only the backend skips it (see
+			// SkippedInstantiation). It is never defined or
+			// pre-indexed locally, so the object writer emits a
+			// by-name (non-package) reference to it, which the linker
+			// resolves against the imported definition.
 			if fn.OClosure == nil && len(pri.dict.targs) != 0 {
 				// cmd/link does not support a type symbol referencing a method symbol
 				// across DSO boundary, so force re-compiling methods on a generic type
@@ -278,7 +292,11 @@ func readBodies(target *ir.Package, duringInlining bool, profile *pgoir.Profile)
 					inlDecls = append(inlDecls, fn)
 				} else {
 					target.Funcs = append(target.Funcs, fn)
-					addInstFunc(fn)
+					if canSkipNonGenericMethod && shareInstEnabled() && ImportedInstantiation(fn.Linksym().Name) {
+						skipInstFunc(fn)
+					} else {
+						addInstFunc(fn)
+					}
 				}
 			}
 
