@@ -1,3 +1,23 @@
+# GOO: Go Optimized
+
+GOO ("Go Optimized") is a fork of the Go toolchain at
+https://github.com/yashvesikar/goo for prototyping compiler and build
+performance work that upstream has not landed yet. Changes are developed on
+topic branches and proposed back to upstream when they are ready.
+
+Current work:
+
+- **Sharing generic instantiations across packages**
+  ([golang/go#56718](https://github.com/golang/go/issues/56718),
+  [golang/go#70511](https://github.com/golang/go/issues/70511)):
+  each package records in its export data which generic instantiations it
+  compiled, and importing packages reference those instead of compiling their
+  own copies. Branch `shared-generic-inst`, pull request #1.
+
+The rest of this file is the upstream Go README.
+
+---
+
 # The Go Programming Language
 
 Go is an open source programming language that makes it easy to build simple,
