@@ -390,6 +390,10 @@ func Main(archInit func(*ssagen.ArchInfo)) {
 		staticinit.AddKeepRelocations()
 	}
 
+	// All functions have been compiled, so we can verify that the
+	// instantiation manifest written to export data is accurate.
+	noder.CheckInstManifest()
+
 	// Write object data to disk.
 	base.Timer.Start("be", "dumpobj")
 	dumpdata()

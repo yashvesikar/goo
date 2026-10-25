@@ -51,6 +51,10 @@ type pkgReader struct {
 	// but bitwise inverted so we can detect if we're missing the entry
 	// or not.
 	newindex []index
+
+	// insts is the instantiation manifest read from an imported
+	// package's export data. It is empty for the local package.
+	insts instManifest
 }
 
 func newPkgReader(pr pkgbits.PkgDecoder) *pkgReader {
@@ -4196,6 +4200,10 @@ func methodWrapper(derefs int, tbase *types.Type, method *types.Field, target *i
 	addTailCall(pos, fn, recv, method)
 
 	finishWrapperFunc(fn, target)
+
+	if isInstantiatedType(tbase) {
+		addInstFunc(fn)
+	}
 }
 
 func wrapMethodValue(recvType *types.Type, method *types.Field, target *ir.Package, needed bool) {
@@ -4221,6 +4229,10 @@ func wrapMethodValue(recvType *types.Type, method *types.Field, target *ir.Packa
 	addTailCall(pos, fn, recv, method)
 
 	finishWrapperFunc(fn, target)
+
+	if isInstantiatedType(recvType) {
+		addInstFunc(fn)
+	}
 }
 
 func newWrapperFunc(pos src.XPos, sym *types.Sym, wrapper *types.Type, method *types.Field) *ir.Func {

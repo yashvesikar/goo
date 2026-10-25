@@ -41,6 +41,10 @@ const (
 	// of nongeneric and generic methods (go.dev/issue/81188).
 	V5
 
+	// V6: adds a manifest of generic instantiations to the
+	// compiler-private root (go.dev/issue/56718).
+	V6
+
 	numVersions = iota
 )
 
@@ -84,6 +88,11 @@ const (
 	// nongeneric and generic methods.
 	PreserveMethodOrder
 
+	// The compiler-private root lists the link symbol names of
+	// generic function instantiations and method wrappers that are
+	// defined in the package's object file.
+	InstManifest
+
 	numFields = iota
 )
 
@@ -94,6 +103,7 @@ var introduced = [numFields]Version{
 	CompactCompLiterals: V3,
 	GenericMethods:      V4,
 	PreserveMethodOrder: V5,
+	InstManifest:        V6,
 }
 
 // removed is the version a field was removed in or 0 for fields

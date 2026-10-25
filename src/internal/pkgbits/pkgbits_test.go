@@ -18,6 +18,7 @@ func TestRoundTrip(t *testing.T) {
 		pkgbits.V3,
 		pkgbits.V4,
 		pkgbits.V5,
+		pkgbits.V6,
 	} {
 		pw := pkgbits.NewPkgEncoder(version, -1)
 		w := pw.NewEncoder(pkgbits.SectionMeta, pkgbits.SyncPublic)
@@ -44,6 +45,7 @@ var (
 	_ [3]bool = [pkgbits.V3]bool{}
 	_ [4]bool = [pkgbits.V4]bool{}
 	_ [5]bool = [pkgbits.V5]bool{}
+	_ [6]bool = [pkgbits.V6]bool{}
 )
 
 func TestVersions(t *testing.T) {
@@ -66,6 +68,7 @@ func TestVersions(t *testing.T) {
 		{pkgbits.V3, pkgbits.CompactCompLiterals},
 		{pkgbits.V4, pkgbits.GenericMethods},
 		{pkgbits.V5, pkgbits.PreserveMethodOrder},
+		{pkgbits.V6, pkgbits.InstManifest},
 	} {
 		if !c.v.Has(c.f) {
 			t.Errorf("Expected version %v to have field %v", c.v, c.f)
@@ -92,6 +95,12 @@ func TestVersions(t *testing.T) {
 		{pkgbits.V2, pkgbits.PreserveMethodOrder},
 		{pkgbits.V3, pkgbits.PreserveMethodOrder},
 		{pkgbits.V4, pkgbits.PreserveMethodOrder},
+		{pkgbits.V0, pkgbits.InstManifest},
+		{pkgbits.V1, pkgbits.InstManifest},
+		{pkgbits.V2, pkgbits.InstManifest},
+		{pkgbits.V3, pkgbits.InstManifest},
+		{pkgbits.V4, pkgbits.InstManifest},
+		{pkgbits.V5, pkgbits.InstManifest},
 	} {
 		if c.v.Has(c.f) {
 			t.Errorf("Expected version %v to not have field %v", c.v, c.f)

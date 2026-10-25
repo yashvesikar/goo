@@ -70,6 +70,7 @@ type DebugFlags struct {
 	Reshape               int    `help:"print information about expression reshaping"`
 	RewriteResults        int    `help:"rewrite returned local variables to use result parameter storage" concurrent:"ok"`
 	Shapify               int    `help:"print information about shaping recursive types"`
+	ShareInst             int    `help:"share generic instantiations across packages via export data manifests\n0: disabled\n1: enabled (default)\n2: enabled, with logging and self-checks" concurrent:"ok"`
 	Simd                  int    `help:"print information about simd analysis and code transformation" concurrent:"ok"`
 	Slice                 int    `help:"print information about slice compilation"`
 	SoftFloat             int    `help:"force compiler to emit soft-float code" concurrent:"ok"`
