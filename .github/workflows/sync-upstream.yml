@@ -1,0 +1,49 @@
+# Keeps this fork in step with upstream Go.
+#
+#   master  is a pure mirror of upstream master (fast-forward only).
+#   goo     is upstream master plus GOO's own commits; it is rebased
+#           onto the new master and force-pushed (with lease).
+#
+# Topic branches are not touched: rebase those by hand when working on
+# them. If the rebase of goo conflicts, the job fails and the conflict
+# has to be resolved manually.
+name: Sync with upstream Go
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: goo
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/golang/go.git
+          git fetch --no-tags upstream master
+
+      - name: Fast-forward the master mirror
+        run: git push origin upstream/master:refs/heads/master
+
+      - name: Rebase goo onto upstream master
+        run: |
+          git rebase upstream/master
+          git push --force-with-lease=goo origin goo
