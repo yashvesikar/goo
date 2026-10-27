@@ -7,12 +7,14 @@ topic branches and proposed back to upstream when they are ready.
 
 Current work:
 
-- **Sharing generic instantiations across packages**
-  ([golang/go#56718](https://github.com/golang/go/issues/56718),
-  [golang/go#70511](https://github.com/golang/go/issues/70511)):
-  each package records in its export data which generic instantiations it
-  compiled, and importing packages reference those instead of compiling their
-  own copies. Branch `shared-generic-inst`, pull request #1.
+- **Sharing generic instantiations across packages** (upstream issues
+  56718 and 70511): each package records in its export data which generic
+  instantiations it compiled, and importing packages reference those instead
+  of compiling their own copies. Merged from branch `shared-generic-inst`.
+
+Branches: `master` is a pure mirror of upstream Go and is never committed to
+directly; `goo` (the default branch) is upstream plus GOO's own changes. A
+scheduled workflow fast-forwards `master` and rebases `goo` onto it daily.
 
 The rest of this file is the upstream Go README.
 
